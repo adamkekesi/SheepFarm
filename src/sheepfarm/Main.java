@@ -5,7 +5,6 @@ package sheepfarm;
 public class Main {
     public static void main(String[] args) {
         Farm farm = new Farm();
-        System.out.println("\033[H\033[2J");
 
         while (true) {
             farm.printGame();
