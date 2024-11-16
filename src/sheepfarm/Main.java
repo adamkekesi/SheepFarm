@@ -5,10 +5,12 @@ package sheepfarm;
 public class Main {
     public static void main(String[] args) {
         Farm farm = new Farm();
+        System.out.println("\033[H\033[2J");
+
         while (true) {
             farm.printGame();
             if (farm.isGameOver()) {
-                System.out.println("Sheep " + farm.getEscapedSheep().toString() + " escaped");
+                System.out.println("A sheep has escaped");
                 return;
             }
             try {
