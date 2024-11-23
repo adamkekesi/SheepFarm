@@ -15,6 +15,8 @@ public class Farm {
 
     private Sheep escapedSheep;
 
+
+
     public Farm(int rows, int cols, int numberOfDogs, int numberOfSheep) {
         if (rows % 3 != 2) {
             throw new IllegalArgumentException("The number of rows must be a number which is greater than a multiple of three by two.");

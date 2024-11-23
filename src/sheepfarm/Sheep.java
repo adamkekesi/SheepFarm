@@ -47,15 +47,6 @@ public class Sheep extends Animal {
 
             // Get available positions satisfying preferences
             ArrayList<Point> validPositions = getAvailablePositions(preferenceX, preferenceY);
-            if (validPositions.isEmpty()) {
-                // If the sheep can't move in a preferred way, we ignore the x, and the y preferences
-                validPositions.addAll(getAvailablePositions(0, preferenceY));
-                validPositions.addAll(getAvailablePositions(preferenceX, 0));
-            }
-            if (validPositions.isEmpty()) {
-                // If there are still no valid positions, we ignore all preferences so that the sheep can move
-                validPositions.addAll(getAvailablePositions(0, 0));
-            }
 
             if (!validPositions.isEmpty()) {
                 Point nextPos = validPositions.get(r.nextInt(0, validPositions.size()));
