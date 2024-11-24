@@ -1,6 +1,7 @@
 package sheepfarm;
 
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -37,7 +38,7 @@ public abstract class Animal extends Thread {
     @Override
     public void run() {
         while (isRunning()) {
-            Move();
+            move();
             try {
                 Thread.sleep(200);
             } catch (InterruptedException e) {
@@ -46,11 +47,24 @@ public abstract class Animal extends Thread {
         }
     }
 
-    public void Dispose() {
+
+
+    public void dispose() {
         synchronized (running){
             running.set(false);
         }
     }
 
-    protected abstract void Move();
+    protected abstract void move();
+
+    protected void moveToRandomAvailablePosition(ArrayList<Point> validPositions){
+        while (!validPositions.isEmpty()) {
+            int index = r.nextInt(0, validPositions.size());
+            Point nextPos = validPositions.get(index);
+            validPositions.remove(index);
+            if (farm.tryMove(location, nextPos)) {
+                break;
+            }
+        }
+    }
 }

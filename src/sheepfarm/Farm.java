@@ -6,17 +6,47 @@ import utils.Sector;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class Farm {
 
     private Object[][] fields;
 
+    private final ReentrantLock[][] locks;
+
     private Random r;
 
     private Sheep escapedSheep;
 
+    //region Getters, setters
+    public Object getFieldAt(int x, int y) {
+        return fields[y][x];
+    }
 
+    public ReentrantLock getReadLockAt(int x, int y) {
+        return locks[y][x];
+    }
 
+    public ReentrantLock getWriteLockAt(int x, int y) {
+        return locks[y][x];
+    }
+
+    private void setFieldAt(int x, int y, Object value) {
+        fields[y][x] = value;
+    }
+
+    public int getLengthX() {
+        return fields[0].length;
+    }
+
+    public int getLengthY() {
+        return fields.length;
+    }
+    //endregion
+
+    //region Constructor, initialization
     public Farm(int rows, int cols, int numberOfDogs, int numberOfSheep) {
         if (rows % 3 != 2) {
             throw new IllegalArgumentException("The number of rows must be a number which is greater than a multiple of three by two.");
@@ -45,6 +75,12 @@ public class Farm {
         }
         this.r = new Random();
 
+        locks = new ReentrantLock[rows][cols];
+        for (int x = 0; x < rows; x++) {
+            for (int y = 0; y < cols; y++) {
+                locks[y][x] = new ReentrantLock();
+            }
+        }
         initMap(rows, cols);
         initWalls();
         initSheep(numberOfSheep);
@@ -53,86 +89,6 @@ public class Farm {
 
     public Farm() {
         this(14, 14, 5, 10);
-    }
-
-    public void printGame() {
-        ArrayList<String> lines = new ArrayList<>();
-        synchronized (this) {
-            for (int y = 0; y < getLengthY(); y++) {
-                StringBuilder sb = new StringBuilder();
-                for (int x = 0; x < getLengthX(); x++) {
-                    sb.append(getFieldAt(x, y).toString());
-                }
-                lines.add(sb.toString());
-            }
-        }
-
-        System.out.println("\033[H\033[2J");
-        for (String line :
-                lines) {
-            System.out.println(line);
-        }
-    }
-
-    public void move(Point source, Point dest) {
-
-        Object sourceField = getFieldAt(source.x, source.y);
-        Object destField = getFieldAt(dest.x, dest.y);
-        if (!(sourceField instanceof Animal)) {
-            return;
-        }
-        if (!(destField instanceof Empty)) {
-            return;
-        }
-        setFieldAt(source.x, source.y, new Empty());
-        setFieldAt(dest.x, dest.y, sourceField);
-        ((Animal) sourceField).setLocation(dest);
-        if (sourceField instanceof Sheep && isEdge(dest)) {
-            gameOver((Sheep) sourceField);
-        }
-
-    }
-
-    public boolean isGameOver() {
-        return escapedSheep != null;
-    }
-
-    private void gameOver(Sheep escapedSheep) {
-        this.escapedSheep = escapedSheep;
-        for (int x = 0; x < getLengthX(); x++) {
-            for (int y = 0; y < getLengthY(); y++) {
-                Object field = getFieldAt(x, y);
-                if (field instanceof Animal) {
-                    ((Animal) field).Dispose();
-                }
-            }
-        }
-    }
-
-    private boolean isEdge(Point p) {
-        return p.x == 0 || p.x == getLengthX() - 1 || p.y == 0 || p.y == getLengthY() - 1;
-    }
-
-    public Object getFieldAt(int x, int y) {
-
-        return fields[y][x];
-
-    }
-
-    public boolean isOutOfMap(Point p) {
-        return p.x < 0 || p.x >= getLengthX() || p.y < 0 || p.y >= getLengthY();
-    }
-
-    private void setFieldAt(int x, int y, Object value) {
-        fields[y][x] = value;
-    }
-
-    public int getLengthX() {
-        return fields[0].length;
-    }
-
-    public int getLengthY() {
-        return fields.length;
     }
 
     private void initMap(int rows, int cols) {
@@ -189,8 +145,115 @@ public class Farm {
             setFieldAt(p.x, p.y, new Sheep(this, p, r));
         }
     }
+    //endregion
 
-    public Sheep getEscapedSheep() {
-        return escapedSheep;
+    //region Queries/computed fields
+    public boolean isGameOver() {
+        return escapedSheep != null;
     }
+
+    private boolean isEdge(Point p) {
+        return p.x == 0 || p.x == getLengthX() - 1 || p.y == 0 || p.y == getLengthY() - 1;
+    }
+
+    public boolean isOutOfMap(Point p) {
+        return p.x < 0 || p.x >= getLengthX() || p.y < 0 || p.y >= getLengthY();
+    }
+    //endregion
+
+    //region Actions
+    public void printGame() {
+        ArrayList<String> lines = new ArrayList<>();
+        for (int y = 0; y < getLengthY(); y++) {
+            StringBuilder sb = new StringBuilder();
+            for (int x = 0; x < getLengthX(); x++) {
+                getReadLockAt(x, y).lock();
+                sb.append(getFieldAt(x, y).toString());
+                getReadLockAt(x, y).unlock();
+            }
+            lines.add(sb.toString());
+        }
+
+
+        System.out.println("\033[H\033[2J");
+        for (String line :
+                lines) {
+            System.out.println(line);
+        }
+    }
+
+    public boolean tryMove(Point source, Point dest) {
+        getWriteLockAt(source.x, source.y).lock();
+        try {
+            boolean success = getWriteLockAt(dest.x, dest.y).tryLock(100, TimeUnit.MILLISECONDS);
+            if (!success) {
+                getWriteLockAt(source.x, source.y).unlock();
+                return false;
+            }
+        } catch (InterruptedException e) {
+
+        }
+
+        Object sourceField = getFieldAt(source.x, source.y);
+        Object destField = getFieldAt(dest.x, dest.y);
+        if (!(sourceField instanceof Animal)) {
+            getWriteLockAt(source.x, source.y).unlock();
+            getWriteLockAt(dest.x, dest.y).unlock();
+            return false;
+        }
+        if (!(destField instanceof Empty)) {
+            getWriteLockAt(source.x, source.y).unlock();
+            getWriteLockAt(dest.x, dest.y).unlock();
+            return false;
+        }
+        setFieldAt(source.x, source.y, new Empty());
+        setFieldAt(dest.x, dest.y, sourceField);
+        ((Animal) sourceField).setLocation(dest);
+
+        getWriteLockAt(source.x, source.y).unlock();
+        getWriteLockAt(dest.x, dest.y).unlock();
+
+        if (sourceField instanceof Sheep && isEdge(dest)) {
+            onGameOver((Sheep) sourceField);
+        }
+        return true;
+    }
+
+    public void lockAreaForRead(Point origin) {
+        for (int y = origin.y - 1; y <= origin.y + 1; y++) {
+            for (int x = origin.x - 1; x <= origin.x + 1; x++) {
+                if (!(x == origin.x && y == origin.y)) {
+                    getReadLockAt(x, y).lock();
+                }
+            }
+        }
+    }
+
+    public void unlockAreaForRead(Point origin) {
+        for (int y = origin.y - 1; y <= origin.y + 1; y++) {
+            for (int x = origin.x - 1; x <= origin.x + 1; x++) {
+                if (!(x == origin.x && y == origin.y)) {
+                    getReadLockAt(x, y).unlock();
+                }
+            }
+        }
+    }
+
+    //endregion
+
+    //region Event handlers
+    private void onGameOver(Sheep escapedSheep) {
+        synchronized (this) {
+            this.escapedSheep = escapedSheep;
+            for (int x = 0; x < getLengthX(); x++) {
+                for (int y = 0; y < getLengthY(); y++) {
+                    Object field = getFieldAt(x, y);
+                    if (field instanceof Animal) {
+                        ((Animal) field).dispose();
+                    }
+                }
+            }
+        }
+    }
+    //endregion
 }

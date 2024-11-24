@@ -5,7 +5,6 @@ import utils.Sector;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Dog extends Animal {
     public Dog(Farm farm, Point location, Random r) {
@@ -19,25 +18,24 @@ public class Dog extends Animal {
     }
 
     @Override
-    protected void Move() {
-        synchronized (farm) {
-            ArrayList<Point> validPositions = new ArrayList<>();
-            for (int x = location.x - 1; x <= location.x + 1; x++) {
-                for (int y = location.y - 1; y <= location.y + 1; y++) {
-                    Point p = new Point(x, y);
-                    if (!(x == location.x && y == location.y) && checkNextPos(p)) {
-                        validPositions.add(p);
-                    }
+    protected void move() {
+        farm.lockAreaForRead(location);
+        ArrayList<Point> validPositions = new ArrayList<>();
+        for (int x = location.x - 1; x <= location.x + 1; x++) {
+            for (int y = location.y - 1; y <= location.y + 1; y++) {
+                Point p = new Point(x, y);
+                if (!(x == location.x && y == location.y) && checkNextPos(p)) {
+                    validPositions.add(p);
                 }
             }
-
-            if (validPositions.isEmpty()) {
-                return;
-            }
-
-            Point nextPos = validPositions.get(r.nextInt(0, validPositions.size()));
-            farm.move(location, nextPos);
         }
+        farm.unlockAreaForRead(location);
+
+        if (validPositions.isEmpty()) {
+            return;
+        }
+
+        moveToRandomAvailablePosition(validPositions);
     }
 
     private boolean checkNextPos(Point p) {
